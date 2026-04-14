@@ -241,6 +241,10 @@ body::before {
     text-decoration: none;
 }
 
+.login-brand {
+    margin-bottom: 22px;
+}
+
 .brand strong {
     font-size: 1.1rem;
 }
