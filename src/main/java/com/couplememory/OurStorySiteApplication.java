@@ -281,7 +281,7 @@ public class OurStorySiteApplication {
             return;
         }
 
-        java.nio.file.Path yearFolder = Paths.get("src", "main", "resources", "static", "assets", "photos", section, year);
+        java.nio.file.Path yearFolder = photosYearPath(section, year);
         Files.createDirectories(yearFolder);
         Files.write(yearFolder.resolve(safeFileName), imagePart.getData());
 
@@ -312,7 +312,7 @@ public class OurStorySiteApplication {
             return;
         }
 
-        java.nio.file.Path filePath = Paths.get("src", "main", "resources", "static", "assets", "photos", section, year, file);
+        java.nio.file.Path filePath = photosYearPath(section, year).resolve(file);
         if (!Files.exists(filePath)) {
             LOG.info("Delete request failed: file not found " + filePath);
             redirect(exchange, "/manage/delete?message=Delete+failed.+File+not+found.");
@@ -369,8 +369,8 @@ public class OurStorySiteApplication {
         model.put("currentYear", safeYear);
         model.put("backLink", "/" + section);
         model.put("galleryItems", renderGallery(section, safeYear));
-        model.put("folderPath", "src/main/resources/static/assets/photos/" + section + "/" + safeYear);
-        model.put("captionPath", "src/main/resources/static/assets/photos/" + section + "/" + safeYear + "/captions.properties");
+        model.put("folderPath", "/assets/photos/" + section + "/" + safeYear);
+        model.put("captionPath", "/assets/photos/" + section + "/" + safeYear + "/captions.properties");
         model.put("uploadAction", "/upload/" + section + "/" + safeYear);
         model.put("uploadMessage", readQueryParam(exchange.getRequestURI().getQuery(), "message"));
         return model;
@@ -610,7 +610,7 @@ public class OurStorySiteApplication {
         }
 
         if (markup.isEmpty()) {
-            markup.add("<section class=\"message-card\"><h2>No year folders yet</h2><p>Create folders inside <code>src/main/resources/static/assets/photos/" + escapeHtml(section) + "</code> and name them like <code>2024</code>, <code>2025</code>.</p></section>");
+            markup.add("<section class=\"message-card\"><h2>No year folders yet</h2><p>Create folders inside <code>/assets/photos/" + escapeHtml(section) + "</code> and name them like <code>2024</code>, <code>2025</code>.</p></section>");
         }
 
         return joinStrings(markup, "\n");
@@ -677,7 +677,7 @@ public class OurStorySiteApplication {
         }
 
         if (markup.isEmpty()) {
-            markup.add("<section class=\"message-card\"><h2>No images in this year yet</h2><p>Add image files to <code>src/main/resources/static/assets/photos/" + escapeHtml(section) + "/" + escapeHtml(year) + "</code> and refresh this page.</p></section>");
+            markup.add("<section class=\"message-card\"><h2>No images in this year yet</h2><p>Add image files to <code>/assets/photos/" + escapeHtml(section) + "/" + escapeHtml(year) + "</code> and refresh this page.</p></section>");
         }
 
         return joinStrings(markup, "\n");
@@ -751,7 +751,7 @@ public class OurStorySiteApplication {
 
     private static Map<String, String> loadCaptions(String section, String year) {
         Map<String, String> captions = new HashMap<String, String>();
-        File captionFile = new File("src/main/resources/static/assets/photos/" + section + "/" + year + "/captions.properties");
+        File captionFile = photosYearPath(section, year).resolve("captions.properties").toFile();
         if (!captionFile.exists()) {
             return captions;
         }
@@ -794,7 +794,7 @@ public class OurStorySiteApplication {
     }
 
     private static List<String> listYearFolders(String section) {
-        File folder = new File("src/main/resources/static/assets/photos/" + section);
+        File folder = photosSectionPath(section).toFile();
         List<String> years = new ArrayList<String>();
         File[] files = folder.listFiles();
         if (files == null) {
@@ -812,7 +812,7 @@ public class OurStorySiteApplication {
     }
 
     private static List<File> listImages(String section, String year) {
-        File folder = new File("src/main/resources/static/assets/photos/" + section + "/" + year);
+        File folder = photosYearPath(section, year).toFile();
         List<File> images = new ArrayList<File>();
         File[] files = folder.listFiles();
         if (files == null) {
@@ -879,7 +879,7 @@ public class OurStorySiteApplication {
     }
 
     private static void updateCaptionFile(String section, String year, String fileName, String caption) throws IOException {
-        java.nio.file.Path captionPath = Paths.get("src", "main", "resources", "static", "assets", "photos", section, year, "captions.properties");
+        java.nio.file.Path captionPath = photosYearPath(section, year).resolve("captions.properties");
         Properties properties = new Properties();
         if (Files.exists(captionPath)) {
             InputStream inputStream = null;
@@ -900,7 +900,7 @@ public class OurStorySiteApplication {
     }
 
     private static void removeCaptionEntry(String section, String year, String fileName) throws IOException {
-        java.nio.file.Path captionPath = Paths.get("src", "main", "resources", "static", "assets", "photos", section, year, "captions.properties");
+        java.nio.file.Path captionPath = photosYearPath(section, year).resolve("captions.properties");
         if (!Files.exists(captionPath)) {
             return;
         }
@@ -938,6 +938,26 @@ public class OurStorySiteApplication {
         return base.replace('-', ' ').replace('_', ' ');
     }
 
+    private static java.nio.file.Path photosRootPath() {
+        java.nio.file.Path localPath = Paths.get("src", "main", "resources", "static", "assets", "photos");
+        if (Files.exists(localPath)) {
+            return localPath;
+        }
+        java.nio.file.Path classesPath = Paths.get("target", "classes", "static", "assets", "photos");
+        if (Files.exists(classesPath)) {
+            return classesPath;
+        }
+        return localPath;
+    }
+
+    private static java.nio.file.Path photosSectionPath(String section) {
+        return photosRootPath().resolve(section);
+    }
+
+    private static java.nio.file.Path photosYearPath(String section, String year) {
+        return photosSectionPath(section).resolve(year);
+    }
+
     private static String formatDate(long value) {
         return new SimpleDateFormat("dd MMM yyyy").format(new Date(value));
     }
@@ -956,9 +976,14 @@ public class OurStorySiteApplication {
             }
         }
 
-        java.nio.file.Path fallbackPath = Paths.get("src", "main", "resources", path.startsWith("/") ? path.substring(1) : path);
+        String cleanPath = path.startsWith("/") ? path.substring(1) : path;
+        java.nio.file.Path fallbackPath = Paths.get("src", "main", "resources", cleanPath);
         if (Files.exists(fallbackPath)) {
             return Files.readAllBytes(fallbackPath);
+        }
+        java.nio.file.Path fallbackClassesPath = Paths.get("target", "classes", cleanPath);
+        if (Files.exists(fallbackClassesPath)) {
+            return Files.readAllBytes(fallbackClassesPath);
         }
 
         throw new IOException("Missing resource: " + path);
