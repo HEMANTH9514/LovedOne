@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<div class="site-shell">
+    <aside class="sidebar">
+        <a class="brand" href="/dashboard">
+            <img class="brand-logo" src="/assets/logo.svg" alt="Our Story logo">
+            <div>
+                <strong>Our Story</strong>
+                <small>Private memory journal</small>
+            </div>
+        </a>
+        <nav class="nav-stack">
+            <a class="{{activeDashboard}}" href="/dashboard">Home</a>
+            <a class="{{activeBirthdays}}" href="/birthdays">Birthdays</a>
+            <a class="{{activeTrips}}" href="/trips">Trips</a>
+            <a class="{{activePlans}}" href="/plans">Future Plans</a>
+        </nav>
+        <a class="logout-link" href="/logout">Logout</a>
+    </aside>
+
+    <main class="content">
+        <section class="page-header reveal">
+            <p class="eyebrow">{{currentYear}}</p>
+            <h1>{{pageTitle}}</h1>
+            <p class="lead">{{pageLead}}</p>
+            <p class="upload-status">{{uploadMessage}}</p>
+            <a class="ghost-link" href="{{backLink}}">Back to Years</a>
+        </section>
+        <section class="upload-card reveal">
+            <p class="mini-label">Add New Memory</p>
+            <h2>Upload image and caption</h2>
+            <form class="upload-form" method="post" action="{{uploadAction}}" enctype="multipart/form-data">
+                <label>
+                    Choose image
+                    <input type="file" name="image" accept=".jpg,.jpeg,.png,.gif,.webp,.svg" required>
+                </label>
+                <label>
+                    Caption
+                    <textarea name="caption" rows="4" placeholder="Write what this memory felt like..." required></textarea>
+                </label>
+                <button type="submit">Upload To {{currentYear}}</button>
+            </form>
+        </section>
+        <section class="gallery-grid">
+            {{galleryItems}}
+        </section>
+    </main>
+</div>
+<script src="/assets/app.js"></script>
+</body>
+</html>

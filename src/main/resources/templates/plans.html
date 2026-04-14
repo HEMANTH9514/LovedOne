@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<div class="site-shell">
+    <aside class="sidebar">
+        <a class="brand" href="/dashboard">
+            <img class="brand-logo" src="/assets/logo.svg" alt="Our Story logo">
+            <div>
+                <strong>Our Story</strong>
+                <small>Private memory journal</small>
+            </div>
+        </a>
+        <nav class="nav-stack">
+            <a class="{{activeDashboard}}" href="/dashboard">Home</a>
+            <a class="{{activeBirthdays}}" href="/birthdays">Birthdays</a>
+            <a class="{{activeTrips}}" href="/trips">Trips</a>
+            <a class="{{activePlans}}" href="/plans">Future Plans</a>
+        </nav>
+        <a class="logout-link" href="/logout">Logout</a>
+    </aside>
+
+    <main class="content">
+        <section class="page-header reveal">
+            <p class="eyebrow">Future chapter</p>
+            <h1>The plans that are already becoming memories.</h1>
+            <p class="lead">Use this page as a romantic planning board for upcoming dates, trips, anniversary ideas, and all the beautiful things still ahead of you.</p>
+        </section>
+        <section class="story-grid">
+            {{cards}}
+        </section>
+    </main>
+</div>
+<script src="/assets/app.js"></script>
+</body>
+</html>

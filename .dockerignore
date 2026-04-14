@@ -1,0 +1,9 @@
+target
+out
+.git
+.gitignore
+server-output.log
+server-error.log
+*.iml
+.idea
+.vscode

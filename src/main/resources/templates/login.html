@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body class="login-body">
+<main class="login-shell">
+    <section class="login-panel reveal">
+        <p class="eyebrow">Private couple space</p>
+        <h1>One little website for two big hearts.</h1>
+        <p class="lead">A soft, private place to keep your birthday memories, travel stories, and plans still waiting to happen.</p>
+        <div class="quote-card">
+            <span>Only you two can enter</span>
+            <strong>Protected with private login</strong>
+        </div>
+    </section>
+
+    <section class="auth-panel reveal">
+        <div class="glass-card">
+            <p class="mini-label">Sign in</p>
+            <h2>Welcome back</h2>
+            <p class="error-text">{{error}}</p>
+            <form method="post" action="/login" class="auth-form">
+                <label>
+                    Username
+                    <input type="text" name="username" placeholder="Enter your private username" required>
+                </label>
+                <label>
+                    Password
+                    <input type="password" name="password" placeholder="Enter your private password" required>
+                </label>
+                <button type="submit">Enter Our Story</button>
+            </form>
+            <p class="helper-text">Change the usernames and passwords in the Java app or with environment variables before using it privately.</p>
+        </div>
+    </section>
+</main>
+<script src="/assets/app.js"></script>
+</body>
+</html>

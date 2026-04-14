@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<div class="site-shell">
+    <aside class="sidebar">
+        <a class="brand" href="/dashboard">
+            <img class="brand-logo" src="/assets/logo.svg" alt="Our Story logo">
+            <div>
+                <strong>Our Story</strong>
+                <small>Private memory journal</small>
+            </div>
+        </a>
+
+        <nav class="nav-stack">
+            <a class="{{activeDashboard}}" href="/dashboard">Home</a>
+            <a class="{{activeBirthdays}}" href="/birthdays">Birthdays</a>
+            <a class="{{activeTrips}}" href="/trips">Trips</a>
+            <a class="{{activePlans}}" href="/plans">Future Plans</a>
+        </nav>
+
+        <div class="sidebar-note">
+            <span>Signed in as</span>
+            <strong>{{username}}</strong>
+        </div>
+
+        <a class="logout-link" href="/logout">Logout</a>
+    </aside>
+
+    <main class="content">
+        {{greetingHtml}}
+        <section class="banner-card reveal">
+            <img src="/assets/photos/dashboard-banner.jpeg" alt="Birthday celebration banner">
+        </section>
+        {{latestUpdatesHtml}}
+        {{manageDeleteHtml}}
+        <section class="hero-card reveal">
+            <div>
+                <p class="eyebrow">Your private corner</p>
+                <h1>The place where your favorite days stay alive.</h1>
+                <p class="lead">Built for the two of you to keep moments, trips, little rituals, and the plans that are still waiting for their date on the calendar.</p>
+            </div>
+            <div class="stat-grid">
+                <article>
+                    <strong>{{daysTogether}}</strong>
+                    <span>days of story</span>
+                </article>
+                <article>
+                    <strong>3</strong>
+                    <span>memory chapters</span>
+                </article>
+                <article>
+                    <strong>2</strong>
+                    <span>private logins</span>
+                </article>
+            </div>
+        </section>
+
+        <section class="feature-grid">
+            <a class="feature-card reveal" href="/birthdays">
+                <span class="feature-kicker">Celebrations</span>
+                <h2>Birthday Moments</h2>
+                <p>Keep the candles, cakes, surprises, and tiny details you never want to forget.</p>
+            </a>
+            <a class="feature-card reveal" href="/trips">
+                <span class="feature-kicker">Journeys</span>
+                <h2>Trips Together</h2>
+                <p>Save the mountains, beaches, city lights, and every in-between memory from the road.</p>
+            </a>
+            <a class="feature-card reveal" href="/plans">
+                <span class="feature-kicker">Dreaming Ahead</span>
+                <h2>Next Plans</h2>
+                <p>Collect ideas for dates, vacations, anniversaries, and the kind of future you are building.</p>
+            </a>
+        </section>
+
+        <section class="highlight-card reveal">
+            <p class="mini-label">Little note</p>
+            <blockquote id="decoded-message" data-secret="{{coverMessage}}"></blockquote>
+        </section>
+    </main>
+</div>
+<script src="/assets/app.js"></script>
+</body>
+</html>

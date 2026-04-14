@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d98463"/>
+      <stop offset="100%" stop-color="#5e2b1f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <circle cx="190" cy="170" r="100" fill="rgba(255,255,255,0.12)"/>
+  <circle cx="980" cy="130" r="70" fill="rgba(255,255,255,0.12)"/>
+  <text x="90" y="530" fill="#fff8f0" font-size="86" font-family="Georgia, serif">Birthday Memory</text>
+  <text x="94" y="610" fill="#ffe5d2" font-size="34" font-family="Arial, sans-serif">Replace this file with your real photo</text>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5f8d7e"/>
+      <stop offset="100%" stop-color="#233933"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <path d="M0 530 L240 320 L410 470 L620 230 L860 500 L1020 370 L1200 560 V800 H0 Z" fill="rgba(255,255,255,0.14)"/>
+  <text x="90" y="540" fill="#f4fff9" font-size="86" font-family="Georgia, serif">Trip 2022</text>
+  <text x="94" y="620" fill="#dff5ec" font-size="34" font-family="Arial, sans-serif">Replace with your travel photo</text>
+</svg>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4fa7c9"/>
+      <stop offset="100%" stop-color="#1d4f63"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <circle cx="930" cy="170" r="92" fill="rgba(255,255,255,0.16)"/>
+  <path d="M0 580 C170 520 300 640 470 585 S820 500 1200 610 V800 H0 Z" fill="rgba(255,255,255,0.12)"/>
+  <text x="90" y="520" fill="#f6fdff" font-size="86" font-family="Georgia, serif">Trip Memory</text>
+  <text x="94" y="600" fill="#e3f7ff" font-size="34" font-family="Arial, sans-serif">Swap this placeholder with your beach or travel shot</text>
+</svg>

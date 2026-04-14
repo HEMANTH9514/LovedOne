@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6e517f"/>
+      <stop offset="100%" stop-color="#251b2c"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <rect x="110" y="140" width="110" height="450" fill="rgba(255,255,255,0.15)"/>
+  <rect x="290" y="250" width="110" height="340" fill="rgba(255,255,255,0.15)"/>
+  <rect x="470" y="90" width="110" height="500" fill="rgba(255,255,255,0.15)"/>
+  <rect x="650" y="210" width="110" height="380" fill="rgba(255,255,255,0.15)"/>
+  <text x="90" y="670" fill="#f8f1ff" font-size="86" font-family="Georgia, serif">Trip 2025</text>
+</svg>

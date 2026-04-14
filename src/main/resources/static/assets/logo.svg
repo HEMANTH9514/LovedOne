@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-labelledby="title desc">
+  <title id="title">HP logo</title>
+  <desc id="desc">A warm romantic monogram logo with the letters H and P and a heart.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#cf6d4b"/>
+      <stop offset="100%" stop-color="#8f3d29"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff8ef" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#f6d3bf" stop-opacity="0.92"/>
+    </linearGradient>
+  </defs>
+  <rect x="18" y="18" width="204" height="204" rx="58" fill="url(#bg)"/>
+  <circle cx="120" cy="120" r="76" fill="none" stroke="rgba(255,248,239,0.28)" stroke-width="3"/>
+  <text x="60" y="136" fill="url(#glow)" font-size="74" font-family="'Brush Script MT', 'Segoe Script', 'Lucida Handwriting', cursive" font-weight="700">H</text>
+  <text x="118" y="136" fill="url(#glow)" font-size="74" font-family="'Brush Script MT', 'Segoe Script', 'Lucida Handwriting', cursive" font-weight="700">P</text>
+  <path d="M120 162c6-11 21-13 28-4 8 10 1 21-12 31l-16 12-16-12c-13-10-20-21-12-31 7-9 22-7 28 4z" fill="#fff4e8"/>
+</svg>
