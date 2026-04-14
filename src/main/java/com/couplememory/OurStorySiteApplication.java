@@ -31,12 +31,14 @@ import java.text.SimpleDateFormat;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.logging.Logger;
 
 public class OurStorySiteApplication {
     private static final int PORT = readEnvInt("PORT", 8080);
     private static final String SESSION_COOKIE = "our-story-session";
     private static final String LOGIN_TITLE = "Our Story Login";
     private static final Charset UTF_8 = Charset.forName("UTF-8");
+    private static final Logger LOG = Logger.getLogger(OurStorySiteApplication.class.getName());
 
     private static final Map<String, String> USERS = new LinkedHashMap<String, String>();
     private static final Map<String, String> SESSIONS = new ConcurrentHashMap<String, String>();
@@ -47,6 +49,7 @@ public class OurStorySiteApplication {
     );
 
     public static void main(String[] args) throws IOException {
+        LOG.info("Application startup initiated.");
         configureUsers();
 
         HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
@@ -54,13 +57,16 @@ public class OurStorySiteApplication {
         server.setExecutor(Executors.newFixedThreadPool(10));
         server.start();
 
+        LOG.info("HTTP server started on port " + PORT);
         System.out.println("Our Story Site is running at http://localhost:" + PORT);
         System.out.println("Configured private users: " + joinKeys(USERS));
+        LOG.info("Configured private users: " + joinKeys(USERS));
     }
 
     private static void configureUsers() {
         USERS.put(readEnv("OUR_STORY_USER_ONE", "partner1"), readEnv("OUR_STORY_PASS_ONE", "change-me-1"));
         USERS.put(readEnv("OUR_STORY_USER_TWO", "partner2"), readEnv("OUR_STORY_PASS_TWO", "change-me-2"));
+        LOG.info("User configuration loaded.");
     }
 
     private static String readEnv(String key, String fallback) {
@@ -99,6 +105,7 @@ public class OurStorySiteApplication {
             try {
                 String path = exchange.getRequestURI().getPath();
                 String method = exchange.getRequestMethod();
+                LOG.info("Incoming request: " + method + " " + path);
 
                 if (path.startsWith("/assets/")) {
                     serveAsset(exchange, path);
@@ -126,39 +133,52 @@ public class OurStorySiteApplication {
                 }
 
                 String username = currentUser(exchange);
+                LOG.info("Session user resolved: " + (username == null ? "anonymous" : username));
                 if (username == null && !"/".equals(path)) {
+                    LOG.info("Unauthenticated access to protected path. Redirecting to login.");
                     redirect(exchange, "/");
                     return;
                 }
 
                 if ("/".equals(path)) {
+                    LOG.info("Serving root path.");
                     showLoginOrDashboard(exchange, username);
                 } else if ("/dashboard".equals(path)) {
+                    LOG.info("Serving dashboard for user: " + username);
                     renderPage(exchange, "dashboard.html", pageModel("dashboard", username, null));
                 } else if ("/birthdays".equals(path)) {
+                    LOG.info("Serving birthdays year list.");
                     renderPage(exchange, "birthdays.html", sectionModel("birthdays", username, "Birthdays by Year",
                             "Open a year and see every birthday photo saved in that folder.", renderYearCards("birthdays")));
                 } else if (path.startsWith("/birthdays/")) {
+                    LOG.info("Serving birthdays gallery for year path: " + path);
                     renderPage(exchange, "gallery.html", galleryModel(exchange, "birthdays", username, "Birthday Gallery",
                             "Photos saved inside your selected birthday year folder.", "birthdays", path.substring("/birthdays/".length())));
                 } else if ("/trips".equals(path)) {
+                    LOG.info("Serving trips year list.");
                     renderPage(exchange, "trips.html", sectionModel("trips", username, "Trips by Year",
                             "Open a year and see every trip photo saved in that folder.", renderYearCards("trips")));
                 } else if (path.startsWith("/trips/")) {
+                    LOG.info("Serving trips gallery for year path: " + path);
                     renderPage(exchange, "gallery.html", galleryModel(exchange, "trips", username, "Trip Gallery",
                             "Photos saved inside your selected trip year folder.", "trips", path.substring("/trips/".length())));
                 } else if ("/plans".equals(path)) {
+                    LOG.info("Serving plans page.");
                     renderPage(exchange, "plans.html", pageModel("plans", username, renderCards(FUTURE_PLANS)));
                 } else if ("/manage/delete".equals(path)) {
                     if (!isHemanth(username)) {
+                        LOG.info("Non-Hemanth user attempted delete manager access. Redirecting.");
                         redirect(exchange, "/dashboard");
                         return;
                     }
+                    LOG.info("Serving delete manager page for Hemanth.");
                     renderPage(exchange, "manage-delete.html", deleteManagerModel(exchange, username));
                 } else {
+                    LOG.info("Route not found: " + path);
                     sendHtml(exchange, 404, TemplateEngine.wrap("Page Not Found", "<section class=\"message-card\"><h1>Page not found</h1><p>The page you requested does not exist.</p><a class=\"ghost-link\" href=\"/dashboard\">Back to dashboard</a></section>"));
                 }
             } catch (Exception exception) {
+                LOG.severe("Unhandled server error: " + exception.getMessage());
                 sendHtml(exchange, 500, TemplateEngine.wrap("Server Error", "<section class=\"message-card\"><h1>Something went wrong</h1><p>" + escapeHtml(exception.getMessage()) + "</p></section>"));
             } finally {
                 exchange.close();
@@ -168,10 +188,12 @@ public class OurStorySiteApplication {
 
     private static void showLoginOrDashboard(HttpExchange exchange, String username) throws IOException {
         if (username != null) {
+            LOG.info("User already authenticated at root. Redirecting to dashboard: " + username);
             redirect(exchange, "/dashboard");
             return;
         }
 
+        LOG.info("Rendering login page for anonymous user.");
         Map<String, String> model = new HashMap<String, String>();
         model.put("title", LOGIN_TITLE);
         model.put("error", readQueryParam(exchange.getRequestURI().getQuery(), "error"));
@@ -183,30 +205,37 @@ public class OurStorySiteApplication {
         Map<String, String> params = parseForm(form);
         String username = valueOrEmpty(params.get("username")).trim();
         String password = valueOrEmpty(params.get("password")).trim();
+        LOG.info("Login attempt for username: " + username);
 
         if (USERS.containsKey(username) && USERS.get(username).equals(password)) {
             String sessionId = UUID.randomUUID().toString();
             SESSIONS.put(sessionId, username);
             exchange.getResponseHeaders().add("Set-Cookie", SESSION_COOKIE + "=" + sessionId + "; Path=/; HttpOnly");
+            LOG.info("Login success for username: " + username);
             redirect(exchange, "/dashboard");
             return;
         }
 
+        LOG.info("Login failed for username: " + username);
         redirect(exchange, "/?error=Private+login+failed.+Please+check+your+username+and+password.");
     }
 
     private static void handleLogout(HttpExchange exchange) throws IOException {
         String sessionId = readCookie(exchange, SESSION_COOKIE);
         if (sessionId != null) {
+            LOG.info("Logout requested for session: " + sessionId);
             SESSIONS.remove(sessionId);
         }
         exchange.getResponseHeaders().add("Set-Cookie", SESSION_COOKIE + "=deleted; Path=/; Max-Age=0; HttpOnly");
+        LOG.info("Logout completed.");
         redirect(exchange, "/");
     }
 
     private static void handleUpload(HttpExchange exchange, String path) throws IOException {
+        LOG.info("Upload request received for path: " + path);
         String[] segments = path.split("/");
         if (segments.length != 4) {
+            LOG.info("Upload request rejected: invalid path format.");
             redirect(exchange, "/dashboard");
             return;
         }
@@ -214,6 +243,7 @@ public class OurStorySiteApplication {
         String section = sanitizeSection(segments[2]);
         String year = sanitizeYear(segments[3]);
         if (section.isEmpty() || year.isEmpty()) {
+            LOG.info("Upload request rejected: invalid section/year.");
             redirect(exchange, "/dashboard");
             return;
         }
@@ -221,12 +251,14 @@ public class OurStorySiteApplication {
         Headers headers = exchange.getRequestHeaders();
         String contentType = headers.getFirst("Content-Type");
         if (contentType == null || contentType.indexOf("multipart/form-data") == -1) {
+            LOG.info("Upload request rejected: invalid content type.");
             redirect(exchange, "/" + section + "/" + year + "?message=Upload+failed.+Please+use+the+upload+form.");
             return;
         }
 
         String boundary = extractBoundary(contentType);
         if (boundary.isEmpty()) {
+            LOG.info("Upload request rejected: missing multipart boundary.");
             redirect(exchange, "/" + section + "/" + year + "?message=Upload+failed.+Missing+upload+boundary.");
             return;
         }
@@ -237,12 +269,14 @@ public class OurStorySiteApplication {
         MultipartItem captionPart = parts.get("caption");
 
         if (imagePart == null || imagePart.getFileName().isEmpty() || imagePart.getData().length == 0) {
+            LOG.info("Upload request rejected: missing image payload.");
             redirect(exchange, "/" + section + "/" + year + "?message=Please+choose+an+image+before+uploading.");
             return;
         }
 
         String safeFileName = sanitizeFileName(imagePart.getFileName());
         if (safeFileName.isEmpty() || !isImageFile(safeFileName)) {
+            LOG.info("Upload request rejected: unsupported file type for " + safeFileName);
             redirect(exchange, "/" + section + "/" + year + "?message=Only+image+files+are+allowed.");
             return;
         }
@@ -253,15 +287,18 @@ public class OurStorySiteApplication {
 
         String caption = captionPart == null ? "" : captionPart.asText();
         updateCaptionFile(section, year, safeFileName, caption);
+        LOG.info("Upload successful: section=" + section + ", year=" + year + ", file=" + safeFileName);
         redirect(exchange, "/" + section + "/" + year + "?message=Upload+saved+successfully.");
     }
 
     private static void handleDeleteImage(HttpExchange exchange) throws IOException {
         String username = currentUser(exchange);
         if (!isHemanth(username)) {
+            LOG.info("Delete request blocked for non-Hemanth user.");
             redirect(exchange, "/dashboard");
             return;
         }
+        LOG.info("Delete request received from Hemanth.");
 
         String form = new String(readAll(exchange.getRequestBody()), UTF_8);
         Map<String, String> params = parseForm(form);
@@ -270,18 +307,21 @@ public class OurStorySiteApplication {
         String file = sanitizeFileName(valueOrEmpty(params.get("file")));
 
         if (section.isEmpty() || year.isEmpty() || file.isEmpty()) {
+            LOG.info("Delete request rejected: invalid section/year/file payload.");
             redirect(exchange, "/manage/delete?message=Delete+failed.+Invalid+request.");
             return;
         }
 
         java.nio.file.Path filePath = Paths.get("src", "main", "resources", "static", "assets", "photos", section, year, file);
         if (!Files.exists(filePath)) {
+            LOG.info("Delete request failed: file not found " + filePath);
             redirect(exchange, "/manage/delete?message=Delete+failed.+File+not+found.");
             return;
         }
 
         Files.delete(filePath);
         removeCaptionEntry(section, year, file);
+        LOG.info("Delete successful: section=" + section + ", year=" + year + ", file=" + file);
         redirect(exchange, "/manage/delete?message=Image+deleted+successfully.");
     }
 
