@@ -304,12 +304,23 @@ body::before {
 }
 
 .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     padding: 13px 16px;
     border-radius: 16px;
     color: var(--muted);
     text-decoration: none;
     font-weight: 700;
     transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.nav-icon {
+    width: 1.2em;
+    text-align: center;
+    line-height: 1;
+    font-size: 1rem;
+    opacity: 0.95;
 }
 
 .nav-link:hover,

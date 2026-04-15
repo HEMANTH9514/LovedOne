@@ -164,7 +164,7 @@ public class OurStorySiteApplication {
                             "Photos saved inside your selected trip year folder.", "trips", path.substring("/trips/".length())));
                 } else if ("/plans".equals(path)) {
                     LOG.info("Serving plans page.");
-                    renderPage(exchange, "plans.html", pageModel("plans", username, renderCards(FUTURE_PLANS)));
+                    renderPage(exchange, "plans.html", plansModel(exchange, username));
                 } else if ("/manage/delete".equals(path)) {
                     if (!isHemanth(username)) {
                         LOG.info("Non-Hemanth user attempted delete manager access. Redirecting.");
@@ -384,9 +384,18 @@ public class OurStorySiteApplication {
         Map<String, String> model = pageModel("dashboard", username, null);
         model.put("title", "Manage Images");
         model.put("pageTitle", "Delete Images");
-        model.put("pageLead", "Choose any birthday or trip image and remove it.");
+        model.put("pageLead", "Choose any birthday, trip, or plan image and remove it.");
         model.put("deleteItems", renderDeleteManager());
         model.put("manageMessage", readQueryParam(exchange.getRequestURI().getQuery(), "message"));
+        return model;
+    }
+
+    private static Map<String, String> plansModel(HttpExchange exchange, String username) throws IOException {
+        Map<String, String> model = pageModel("plans", username, null);
+        model.put("title", "Our Story Plans");
+        model.put("uploadAction", "/upload/plans/board");
+        model.put("uploadMessage", readQueryParam(exchange.getRequestURI().getQuery(), "message"));
+        model.put("galleryItems", renderGallery("plans", "board"));
         return model;
     }
 
@@ -625,7 +634,7 @@ public class OurStorySiteApplication {
         List<String> markup = new ArrayList<String>();
         markup.add("<section class=\"latest-feed reveal\">");
         markup.add("<h2>Latest Updates</h2>");
-        markup.add("<p class=\"lead\">Recent birthday and trip memories appear here automatically.</p>");
+        markup.add("<p class=\"lead\">Recent birthday, trip, and plan memories appear here automatically.</p>");
 
         if (items.isEmpty()) {
             markup.add("<p class=\"file-text\">No updates yet. Upload a memory to get started.</p>");
@@ -665,8 +674,8 @@ public class OurStorySiteApplication {
             builder.append("<div class=\"post-head\">");
             builder.append("<img class=\"post-avatar-logo\" src=\"/assets/logo.svg?v=20260415\" alt=\"HP logo\" />");
             builder.append("<div class=\"post-meta\">");
-            builder.append("<strong>").append(escapeHtml(year)).append("</strong>");
-            builder.append("<span>").append(section.equals("birthdays") ? "Birthday memory" : "Trip memory").append("</span>");
+            builder.append("<strong>").append(escapeHtml("plans".equals(section) ? "Plans" : year)).append("</strong>");
+            builder.append("<span>").append(section.equals("birthdays") ? "Birthday memory" : section.equals("trips") ? "Trip memory" : "Plan memory").append("</span>");
             builder.append("</div>");
             builder.append("</div>");
             builder.append("<a class=\"gallery-image\" href=\"").append(escapeHtml(imageUrl)).append("\" target=\"_blank\">");
@@ -681,7 +690,7 @@ public class OurStorySiteApplication {
         }
 
         if (markup.isEmpty()) {
-            markup.add("<section class=\"message-card\"><h2>No images in this year yet</h2><p>Add image files to <code>/assets/photos/" + escapeHtml(section) + "/" + escapeHtml(year) + "</code> and refresh this page.</p></section>");
+            markup.add("<section class=\"message-card\"><h2>No memories yet</h2><p>Add image files to <code>/assets/photos/" + escapeHtml(section) + "/" + escapeHtml(year) + "</code> and refresh this page.</p></section>");
         }
 
         return joinStrings(markup, "\n");
@@ -718,6 +727,7 @@ public class OurStorySiteApplication {
         List<FeedItem> items = new ArrayList<FeedItem>();
         collectSectionFeed("birthdays", "Birthday", items);
         collectSectionFeed("trips", "Trip", items);
+        collectSectionFeed("plans", "Plan", items);
 
         Collections.sort(items, new Comparator<FeedItem>() {
             public int compare(FeedItem left, FeedItem right) {
@@ -866,7 +876,7 @@ public class OurStorySiteApplication {
     }
 
     private static String sanitizeSection(String section) {
-        if ("birthdays".equals(section) || "trips".equals(section)) {
+        if ("birthdays".equals(section) || "trips".equals(section) || "plans".equals(section)) {
             return section;
         }
         return "";

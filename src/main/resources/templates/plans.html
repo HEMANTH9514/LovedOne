@@ -21,9 +21,9 @@
         </a>
         <nav class="nav-stack">
             <a class="{{activeDashboard}}" href="/dashboard">Home</a>
-            <a class="{{activeBirthdays}}" href="/birthdays">Birthdays</a>
-            <a class="{{activeTrips}}" href="/trips">Trips</a>
-            <a class="{{activePlans}}" href="/plans">Future Plans</a>
+            <a class="{{activeBirthdays}}" href="/birthdays"><span class="nav-icon" aria-hidden="true">🎂</span>Birthdays</a>
+            <a class="{{activeTrips}}" href="/trips"><span class="nav-icon" aria-hidden="true">✈️</span>Trips</a>
+            <a class="{{activePlans}}" href="/plans"><span class="nav-icon" aria-hidden="true">💌</span>Future Plans</a>
         </nav>
         <a class="logout-link" href="/logout">Logout</a>
     </aside>
@@ -32,10 +32,26 @@
         <section class="page-header reveal">
             <p class="eyebrow">Future chapter</p>
             <h1>The plans that are already becoming memories.</h1>
-            <p class="lead">Use this page as a romantic planning board for upcoming dates, trips, anniversary ideas, and all the beautiful things still ahead of you.</p>
+            <p class="lead">Click below, write anything from your heart, add an image, and save it as a memory feed post.</p>
+            <p class="upload-status">{{uploadMessage}}</p>
         </section>
-        <section class="story-grid">
-            {{cards}}
+        <section class="upload-card reveal">
+            <p class="mini-label">Plan Memory</p>
+            <h2>Add your plan as a feed post</h2>
+            <form class="upload-form" method="post" action="{{uploadAction}}" enctype="multipart/form-data">
+                <label>
+                    Choose image
+                    <input type="file" name="image" accept=".jpg,.jpeg,.png,.gif,.webp,.svg" required>
+                </label>
+                <label>
+                    Write your note
+                    <textarea name="caption" rows="4" placeholder="Write anything... what you planned, how you felt, next steps..." required></textarea>
+                </label>
+                <button type="submit">Save Plan Memory</button>
+            </form>
+        </section>
+        <section class="gallery-grid">
+            {{galleryItems}}
         </section>
     </main>
 </div>
