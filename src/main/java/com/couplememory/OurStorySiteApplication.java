@@ -286,7 +286,11 @@ public class OurStorySiteApplication {
         Files.write(yearFolder.resolve(safeFileName), imagePart.getData());
 
         String caption = captionPart == null ? "" : captionPart.asText();
-        updateCaptionFile(section, year, safeFileName, caption);
+        String uploader = valueOrEmpty(currentUser(exchange)).trim();
+        if (uploader.isEmpty()) {
+            uploader = "Private user";
+        }
+        updateCaptionFile(section, year, safeFileName, caption, uploader);
         LOG.info("Upload successful: section=" + section + ", year=" + year + ", file=" + safeFileName);
         redirect(exchange, "/" + section + "/" + year + "?message=Upload+saved+successfully.");
     }
@@ -634,8 +638,8 @@ public class OurStorySiteApplication {
                 markup.add("<img src=\"" + escapeHtml(item.getImageUrl()) + "\" alt=\"" + escapeHtml(item.getFileName()) + "\" />");
                 markup.add("<div>");
                 markup.add("<strong>" + escapeHtml(item.getSectionLabel()) + " " + escapeHtml(item.getYear()) + "</strong>");
-                markup.add("<p>" + escapeHtml(item.getCaption().isEmpty() ? prettyName(item.getFileName()) : item.getCaption()) + "</p>");
-                markup.add("<span>" + escapeHtml(item.getDateLabel()) + "</span>");
+                markup.add("<p>" + escapeHtml(item.getCaption().isEmpty() ? "New memory added." : item.getCaption()) + "</p>");
+                markup.add("<span>" + escapeHtml(item.getDateLabel()) + " • by " + escapeHtml(item.getUploader()) + "</span>");
                 markup.add("</div>");
                 markup.add("</a>");
             }
@@ -655,10 +659,11 @@ public class OurStorySiteApplication {
             String fileName = image.getName();
             String imageUrl = "/assets/photos/" + section + "/" + year + "/" + fileName;
             String caption = resolveCaption(captions, fileName);
+            String uploader = resolveUploader(captions, fileName);
             StringBuilder builder = new StringBuilder();
             builder.append("<article class=\"gallery-card insta-post reveal\">");
             builder.append("<div class=\"post-head\">");
-            builder.append("<span class=\"post-avatar\">OS</span>");
+            builder.append("<img class=\"post-avatar-logo\" src=\"/assets/logo.svg?v=20260415\" alt=\"HP logo\" />");
             builder.append("<div class=\"post-meta\">");
             builder.append("<strong>").append(escapeHtml(year)).append("</strong>");
             builder.append("<span>").append(section.equals("birthdays") ? "Birthday memory" : "Trip memory").append("</span>");
@@ -668,9 +673,8 @@ public class OurStorySiteApplication {
             builder.append("<img src=\"").append(escapeHtml(imageUrl)).append("\" alt=\"").append(escapeHtml(fileName)).append("\" />");
             builder.append("</a>");
             builder.append("<div class=\"gallery-copy\">");
-            builder.append("<h3>").append(escapeHtml(prettyName(fileName))).append("</h3>");
+            builder.append("<h3>Uploaded by ").append(escapeHtml(uploader)).append("</h3>");
             builder.append("<p class=\"caption-text\">").append(caption.isEmpty() ? "Add a caption for this image in captions.properties." : escapeHtml(caption)).append("</p>");
-            builder.append("<p class=\"file-text\">").append(escapeHtml(fileName)).append("</p>");
             builder.append("</div>");
             builder.append("</article>");
             markup.add(builder.toString());
@@ -735,6 +739,7 @@ public class OurStorySiteApplication {
             for (File image : images) {
                 String fileName = image.getName();
                 String caption = resolveCaption(captions, fileName);
+                String uploader = resolveUploader(captions, fileName);
                 items.add(new FeedItem(
                         section,
                         label,
@@ -743,6 +748,7 @@ public class OurStorySiteApplication {
                         "/assets/photos/" + section + "/" + year + "/" + fileName,
                         "/" + section + "/" + year,
                         caption,
+                        uploader,
                         image.lastModified()
                 ));
             }
@@ -791,6 +797,22 @@ public class OurStorySiteApplication {
         }
 
         return "";
+    }
+
+    private static String resolveUploader(Map<String, String> captions, String fileName) {
+        String exact = captions.get(uploaderKey(fileName));
+        if (exact != null) {
+            return valueOrEmpty(exact).trim().isEmpty() ? "Private user" : valueOrEmpty(exact).trim();
+        }
+
+        for (Map.Entry<String, String> entry : captions.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(uploaderKey(fileName))) {
+                String name = valueOrEmpty(entry.getValue()).trim();
+                return name.isEmpty() ? "Private user" : name;
+            }
+        }
+
+        return "Private user";
     }
 
     private static List<String> listYearFolders(String section) {
@@ -878,7 +900,7 @@ public class OurStorySiteApplication {
         return "";
     }
 
-    private static void updateCaptionFile(String section, String year, String fileName, String caption) throws IOException {
+    private static void updateCaptionFile(String section, String year, String fileName, String caption, String uploader) throws IOException {
         java.nio.file.Path captionPath = photosYearPath(section, year).resolve("captions.properties");
         Properties properties = new Properties();
         if (Files.exists(captionPath)) {
@@ -894,6 +916,7 @@ public class OurStorySiteApplication {
         }
 
         properties.setProperty(fileName, valueOrEmpty(caption));
+        properties.setProperty(uploaderKey(fileName), valueOrEmpty(uploader));
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         properties.store(outputStream, "Gallery captions");
         Files.write(captionPath, outputStream.toByteArray());
@@ -926,10 +949,15 @@ public class OurStorySiteApplication {
 
         if (matchedKey != null) {
             properties.remove(matchedKey);
+            properties.remove(uploaderKey(matchedKey));
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             properties.store(outputStream, "Gallery captions");
             Files.write(captionPath, outputStream.toByteArray());
         }
+    }
+
+    private static String uploaderKey(String fileName) {
+        return fileName + ".by";
     }
 
     private static String prettyName(String fileName) {
@@ -1118,9 +1146,10 @@ public class OurStorySiteApplication {
         private final String imageUrl;
         private final String yearUrl;
         private final String caption;
+        private final String uploader;
         private final long lastModified;
 
-        private FeedItem(String section, String sectionLabel, String year, String fileName, String imageUrl, String yearUrl, String caption, long lastModified) {
+        private FeedItem(String section, String sectionLabel, String year, String fileName, String imageUrl, String yearUrl, String caption, String uploader, long lastModified) {
             this.section = section;
             this.sectionLabel = sectionLabel;
             this.year = year;
@@ -1128,6 +1157,7 @@ public class OurStorySiteApplication {
             this.imageUrl = imageUrl;
             this.yearUrl = yearUrl;
             this.caption = caption;
+            this.uploader = uploader;
             this.lastModified = lastModified;
         }
 
@@ -1157,6 +1187,10 @@ public class OurStorySiteApplication {
 
         private String getCaption() {
             return caption;
+        }
+
+        private String getUploader() {
+            return uploader;
         }
 
         private long getLastModified() {

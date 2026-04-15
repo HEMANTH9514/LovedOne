@@ -627,16 +627,14 @@ blockquote {
     padding: 6px 4px 0;
 }
 
-.post-avatar {
+.post-avatar-logo {
     width: 42px;
     height: 42px;
     border-radius: 50%;
-    display: grid;
-    place-items: center;
-    background: linear-gradient(135deg, var(--accent), #f0a16f);
-    color: white;
-    font-family: "DM Serif Display", serif;
-    font-size: 1rem;
+    object-fit: cover;
+    display: block;
+    border: 2px solid rgba(197, 92, 59, 0.18);
+    box-shadow: 0 6px 16px rgba(143, 61, 41, 0.2);
 }
 
 .post-meta {
