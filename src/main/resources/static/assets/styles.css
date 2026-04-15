@@ -204,6 +204,28 @@ body::before {
     line-height: 1.6;
 }
 
+.love-note {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.62);
+}
+
+.love-dots {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.love-dots span {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--accent), #f0a16f);
+    box-shadow: 0 6px 14px rgba(197, 92, 59, 0.25);
+}
+
 .error-text {
     color: #a1352c;
     font-weight: 700;
@@ -298,6 +320,28 @@ body::before {
     display: grid;
     gap: 24px;
     align-content: start;
+}
+
+.welcome-greeting {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.welcome-greeting h1 {
+    margin: 0;
+    font-family: "DM Serif Display", serif;
+    font-size: clamp(2.1rem, 4vw, 3.2rem);
+    line-height: 1;
+}
+
+.welcome-gif {
+    width: 84px;
+    height: 84px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 16px 28px rgba(143, 61, 41, 0.25);
 }
 
 .hero-card,

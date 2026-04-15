@@ -337,9 +337,9 @@ public class OurStorySiteApplication {
         String greetingHtml = "";
         if ("dashboard".equals(activePage) && username != null) {
             if (isHemanth(username)) {
-                greetingHtml = "<div style=\"display:flex; align-items:center; margin-bottom:2rem; animation: revealUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;\"><h1 style=\"margin:0; font-family:'DM Serif Display', serif; font-size:2.5rem; color:var(--text);\">Hi Hemanth</h1><img src=\"https://media.giphy.com/media/xT9IgG50Fb7Mi0prBC/giphy.gif\" alt=\"hi\" style=\"height:3rem; margin-left:1rem; border-radius:50%;\"></div>";
+                greetingHtml = "<section class=\"welcome-greeting reveal\"><h1>Hi Hemanth</h1></section>";
             } else if (username.equalsIgnoreCase("Prashanti")) {
-                greetingHtml = "<div style=\"display:flex; align-items:center; margin-bottom:2rem; animation: revealUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;\"><h1 style=\"margin:0; font-family:'DM Serif Display', serif; font-size:2.5rem; color:var(--text);\">Hi chine</h1><img src=\"https://media.giphy.com/media/xT9IgG50Fb7Mi0prBC/giphy.gif\" alt=\"hi\" style=\"height:3rem; margin-left:1rem; border-radius:50%;\"></div>";
+                greetingHtml = "<section class=\"welcome-greeting reveal\"><h1>Welcome Prashanti</h1><img class=\"welcome-gif\" src=\"/assets/prashanti-welcome.gif?v=20260415\" alt=\"Warm welcome\" /></section>";
             }
         }
         model.put("greetingHtml", greetingHtml);
