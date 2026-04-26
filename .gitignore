@@ -6,3 +6,6 @@ server-error.log
 cloudflared.log
 .DS_Store
 Thumbs.db
+.env
+firebase-service-account.json
+*firebase-adminsdk*.json

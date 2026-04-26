@@ -1,12 +1,25 @@
 package com.couplememory;
 
+import com.google.api.gax.paging.Page;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Storage;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseOptions;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseToken;
+import com.google.firebase.cloud.StorageClient;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -21,12 +34,14 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.Properties;
+import java.util.Set;
 import java.text.SimpleDateFormat;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,6 +54,8 @@ public class OurStorySiteApplication {
     private static final String LOGIN_TITLE = "Our Story Login";
     private static final Charset UTF_8 = Charset.forName("UTF-8");
     private static final Logger LOG = Logger.getLogger(OurStorySiteApplication.class.getName());
+    private static final Set<String> ALLOWED_FIREBASE_EMAILS = new LinkedHashSet<String>();
+    private static volatile boolean FIREBASE_ENABLED = false;
 
     private static final Map<String, String> USERS = new LinkedHashMap<String, String>();
     private static final Map<String, String> SESSIONS = new ConcurrentHashMap<String, String>();
@@ -51,6 +68,7 @@ public class OurStorySiteApplication {
     public static void main(String[] args) throws IOException {
         LOG.info("Application startup initiated.");
         configureUsers();
+        configureFirebase();
 
         HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
         server.createContext("/", new RouteHandler());
@@ -67,6 +85,83 @@ public class OurStorySiteApplication {
         USERS.put(readEnv("OUR_STORY_USER_ONE", "partner1"), readEnv("OUR_STORY_PASS_ONE", "change-me-1"));
         USERS.put(readEnv("OUR_STORY_USER_TWO", "partner2"), readEnv("OUR_STORY_PASS_TWO", "change-me-2"));
         LOG.info("User configuration loaded.");
+    }
+
+    private static void configureFirebase() {
+        String serviceAccountPath = readEnv("FIREBASE_SERVICE_ACCOUNT_PATH", "").trim();
+        if (serviceAccountPath.isEmpty()) {
+            LOG.info("Firebase service account path not configured. Keeping legacy login active.");
+            return;
+        }
+
+        File serviceAccountFile = new File(serviceAccountPath);
+        if (!serviceAccountFile.exists()) {
+            LOG.warning("Firebase service account file not found: " + serviceAccountPath);
+            return;
+        }
+
+        InputStream credentialsStream = null;
+        try {
+            credentialsStream = new FileInputStream(serviceAccountFile);
+            FirebaseOptions.Builder optionsBuilder = FirebaseOptions.builder()
+                    .setCredentials(GoogleCredentials.fromStream(credentialsStream));
+
+            String storageBucket = firebaseStorageBucket();
+            if (!storageBucket.isEmpty()) {
+                optionsBuilder.setStorageBucket(storageBucket);
+            }
+
+            FirebaseOptions options = optionsBuilder.build();
+
+            if (FirebaseApp.getApps().isEmpty()) {
+                FirebaseApp.initializeApp(options);
+            }
+
+            FIREBASE_ENABLED = true;
+            configureAllowedFirebaseEmails();
+            LOG.info("Firebase authentication is enabled.");
+            if (isFirebaseStorageEnabled()) {
+                LOG.info("Firebase storage is enabled with bucket: " + firebaseStorageBucket());
+            } else {
+                LOG.info("Firebase storage bucket not configured. Uploads will use local filesystem.");
+            }
+        } catch (Exception exception) {
+            FIREBASE_ENABLED = false;
+            LOG.severe("Firebase initialization failed: " + exception.getMessage());
+        } finally {
+            if (credentialsStream != null) {
+                try {
+                    credentialsStream.close();
+                } catch (IOException ignored) {
+                }
+            }
+        }
+    }
+
+    private static void configureAllowedFirebaseEmails() {
+        ALLOWED_FIREBASE_EMAILS.clear();
+        String raw = readEnv("OUR_STORY_ALLOWED_EMAILS", "");
+        if (raw.trim().isEmpty()) {
+            LOG.info("No Firebase email allow-list configured. Any Firebase-authenticated user is accepted.");
+            return;
+        }
+
+        for (String email : raw.split(",")) {
+            String normalized = valueOrEmpty(email).trim().toLowerCase();
+            if (!normalized.isEmpty()) {
+                ALLOWED_FIREBASE_EMAILS.add(normalized);
+            }
+        }
+
+        LOG.info("Configured Firebase allow-list emails: " + ALLOWED_FIREBASE_EMAILS.size());
+    }
+
+    private static String firebaseStorageBucket() {
+        String preferred = readEnv("FIREBASE_ADMIN_STORAGE_BUCKET", "").trim();
+        if (!preferred.isEmpty()) {
+            return preferred;
+        }
+        return readEnv("FIREBASE_STORAGE_BUCKET", "").trim();
     }
 
     private static String readEnv(String key, String fallback) {
@@ -114,6 +209,11 @@ public class OurStorySiteApplication {
 
                 if ("/login".equals(path) && "POST".equalsIgnoreCase(method)) {
                     handleLogin(exchange);
+                    return;
+                }
+
+                if ("/login/firebase".equals(path) && "POST".equalsIgnoreCase(method)) {
+                    handleFirebaseLogin(exchange);
                     return;
                 }
 
@@ -197,6 +297,13 @@ public class OurStorySiteApplication {
         Map<String, String> model = new HashMap<String, String>();
         model.put("title", LOGIN_TITLE);
         model.put("error", readQueryParam(exchange.getRequestURI().getQuery(), "error"));
+        model.put("firebaseEnabled", (FIREBASE_ENABLED && isFirebaseClientConfigured()) ? "true" : "false");
+        model.put("firebaseApiKey", escapeJs(readEnv("FIREBASE_API_KEY", "")));
+        model.put("firebaseAuthDomain", escapeJs(readEnv("FIREBASE_AUTH_DOMAIN", "")));
+        model.put("firebaseProjectId", escapeJs(readEnv("FIREBASE_PROJECT_ID", "")));
+        model.put("firebaseStorageBucket", escapeJs(readEnv("FIREBASE_STORAGE_BUCKET", "")));
+        model.put("firebaseMessagingSenderId", escapeJs(readEnv("FIREBASE_MESSAGING_SENDER_ID", "")));
+        model.put("firebaseAppId", escapeJs(readEnv("FIREBASE_APP_ID", "")));
         renderPage(exchange, "login.html", model);
     }
 
@@ -218,6 +325,46 @@ public class OurStorySiteApplication {
 
         LOG.info("Login failed for username: " + username);
         redirect(exchange, "/?error=Private+login+failed.+Please+check+your+username+and+password.");
+    }
+
+    private static void handleFirebaseLogin(HttpExchange exchange) throws IOException {
+        if (!FIREBASE_ENABLED) {
+            sendJson(exchange, 503, "{\"error\":\"Firebase login is not configured on the server yet.\"}");
+            return;
+        }
+
+        String body = new String(readAll(exchange.getRequestBody()), UTF_8);
+        String idToken = extractJsonString(body, "idToken").trim();
+        if (idToken.isEmpty()) {
+            sendJson(exchange, 400, "{\"error\":\"Missing Firebase token.\"}");
+            return;
+        }
+
+        try {
+            FirebaseToken token = FirebaseAuth.getInstance().verifyIdToken(idToken);
+            String email = valueOrEmpty(token.getEmail()).trim().toLowerCase();
+            if (email.isEmpty()) {
+                sendJson(exchange, 401, "{\"error\":\"Firebase token is missing an email address.\"}");
+                return;
+            }
+            if (!isAllowedFirebaseUser(email)) {
+                sendJson(exchange, 403, "{\"error\":\"This email is not allowed to access this site.\"}");
+                return;
+            }
+
+            String username = valueOrEmpty(token.getName()).trim();
+            if (username.isEmpty()) {
+                username = email;
+            }
+            String sessionId = UUID.randomUUID().toString();
+            SESSIONS.put(sessionId, username);
+            exchange.getResponseHeaders().add("Set-Cookie", SESSION_COOKIE + "=" + sessionId + "; Path=/; HttpOnly");
+            LOG.info("Firebase login success for email: " + email);
+            sendJson(exchange, 200, "{\"ok\":true}");
+        } catch (Exception exception) {
+            LOG.info("Firebase login failed: " + exception.getMessage());
+            sendJson(exchange, 401, "{\"error\":\"Private login failed. Please verify your email and password.\"}");
+        }
     }
 
     private static void handleLogout(HttpExchange exchange) throws IOException {
@@ -281,9 +428,13 @@ public class OurStorySiteApplication {
             return;
         }
 
-        java.nio.file.Path yearFolder = photosYearPath(section, year);
-        Files.createDirectories(yearFolder);
-        Files.write(yearFolder.resolve(safeFileName), imagePart.getData());
+        if (isFirebaseStorageEnabled()) {
+            uploadImageToFirebaseStorage(section, year, safeFileName, imagePart.getData());
+        } else {
+            java.nio.file.Path yearFolder = photosYearPath(section, year);
+            Files.createDirectories(yearFolder);
+            Files.write(yearFolder.resolve(safeFileName), imagePart.getData());
+        }
 
         String caption = captionPart == null ? "" : captionPart.asText();
         String uploader = valueOrEmpty(currentUser(exchange)).trim();
@@ -316,14 +467,21 @@ public class OurStorySiteApplication {
             return;
         }
 
-        java.nio.file.Path filePath = photosYearPath(section, year).resolve(file);
-        if (!Files.exists(filePath)) {
-            LOG.info("Delete request failed: file not found " + filePath);
-            redirect(exchange, "/manage/delete?message=Delete+failed.+File+not+found.");
-            return;
+        if (isFirebaseStorageEnabled()) {
+            if (!deleteImageFromFirebaseStorage(section, year, file)) {
+                LOG.info("Delete request failed: file not found in Firebase Storage.");
+                redirect(exchange, "/manage/delete?message=Delete+failed.+File+not+found.");
+                return;
+            }
+        } else {
+            java.nio.file.Path filePath = photosYearPath(section, year).resolve(file);
+            if (!Files.exists(filePath)) {
+                LOG.info("Delete request failed: file not found " + filePath);
+                redirect(exchange, "/manage/delete?message=Delete+failed.+File+not+found.");
+                return;
+            }
+            Files.delete(filePath);
         }
-
-        Files.delete(filePath);
         removeCaptionEntry(section, year, file);
         LOG.info("Delete successful: section=" + section + ", year=" + year + ", file=" + file);
         redirect(exchange, "/manage/delete?message=Image+deleted+successfully.");
@@ -436,6 +594,32 @@ public class OurStorySiteApplication {
         return null;
     }
 
+    private static boolean isFirebaseClientConfigured() {
+        return !readEnv("FIREBASE_API_KEY", "").trim().isEmpty()
+                && !readEnv("FIREBASE_AUTH_DOMAIN", "").trim().isEmpty()
+                && !readEnv("FIREBASE_PROJECT_ID", "").trim().isEmpty()
+                && !readEnv("FIREBASE_APP_ID", "").trim().isEmpty();
+    }
+
+    private static boolean isFirebaseStorageEnabled() {
+        return FIREBASE_ENABLED && !firebaseStorageBucket().isEmpty();
+    }
+
+    private static boolean isAllowedFirebaseUser(String email) {
+        if (ALLOWED_FIREBASE_EMAILS.isEmpty()) {
+            return true;
+        }
+        return ALLOWED_FIREBASE_EMAILS.contains(valueOrEmpty(email).trim().toLowerCase());
+    }
+
+    private static String firebasePhotosObjectPath(String section, String year, String fileName) {
+        return "assets/photos/" + section + "/" + year + "/" + fileName;
+    }
+
+    private static String firebaseCaptionObjectPath(String section, String year) {
+        return firebasePhotosObjectPath(section, year, "captions.properties");
+    }
+
     private static Map<String, String> parseForm(String body) throws IOException {
         Map<String, String> result = new HashMap<String, String>();
         if (body == null || body.trim().isEmpty()) {
@@ -449,6 +633,48 @@ public class OurStorySiteApplication {
             result.put(key, value);
         }
         return result;
+    }
+
+    private static String extractJsonString(String body, String key) {
+        if (body == null || key == null || body.isEmpty() || key.isEmpty()) {
+            return "";
+        }
+
+        String quotedKey = "\"" + key + "\"";
+        int keyIndex = body.indexOf(quotedKey);
+        if (keyIndex < 0) {
+            return "";
+        }
+
+        int colonIndex = body.indexOf(':', keyIndex + quotedKey.length());
+        if (colonIndex < 0) {
+            return "";
+        }
+
+        int firstQuote = body.indexOf('"', colonIndex + 1);
+        if (firstQuote < 0) {
+            return "";
+        }
+
+        StringBuilder value = new StringBuilder();
+        boolean escaping = false;
+        for (int i = firstQuote + 1; i < body.length(); i++) {
+            char current = body.charAt(i);
+            if (escaping) {
+                value.append(current);
+                escaping = false;
+                continue;
+            }
+            if (current == '\\') {
+                escaping = true;
+                continue;
+            }
+            if (current == '"') {
+                return value.toString();
+            }
+            value.append(current);
+        }
+        return "";
     }
 
     private static Map<String, MultipartItem> parseMultipart(byte[] body, String boundary) throws IOException {
@@ -564,9 +790,19 @@ public class OurStorySiteApplication {
     }
 
     private static void serveAsset(HttpExchange exchange, String path) throws IOException {
-        String resourcePath = "/static" + path;
         String contentType = contentType(path);
-        byte[] content = readResourceBytes(resourcePath);
+        byte[] content;
+        if (isFirebaseStorageEnabled() && path.startsWith("/assets/photos/")) {
+            try {
+                content = readFirebaseAsset(path.substring(1));
+            } catch (IOException ignored) {
+                String resourcePath = "/static" + path;
+                content = readResourceBytes(resourcePath);
+            }
+        } else {
+            String resourcePath = "/static" + path;
+            content = readResourceBytes(resourcePath);
+        }
         exchange.getResponseHeaders().set("Content-Type", contentType);
         exchange.sendResponseHeaders(200, content.length);
         try (OutputStream outputStream = exchange.getResponseBody()) {
@@ -577,6 +813,15 @@ public class OurStorySiteApplication {
     private static void sendHtml(HttpExchange exchange, int status, String html) throws IOException {
         byte[] payload = html.getBytes(UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "text/html; charset=UTF-8");
+        exchange.sendResponseHeaders(status, payload.length);
+        try (OutputStream outputStream = exchange.getResponseBody()) {
+            outputStream.write(payload);
+        }
+    }
+
+    private static void sendJson(HttpExchange exchange, int status, String json) throws IOException {
+        byte[] payload = json.getBytes(UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
         exchange.sendResponseHeaders(status, payload.length);
         try (OutputStream outputStream = exchange.getResponseBody()) {
             outputStream.write(payload);
@@ -660,12 +905,12 @@ public class OurStorySiteApplication {
     }
 
     private static String renderGallery(String section, String year) {
-        List<File> images = listImages(section, year);
+        List<GalleryImage> images = listImages(section, year);
         Map<String, String> captions = loadCaptions(section, year);
         List<String> markup = new ArrayList<String>();
 
-        for (File image : images) {
-            String fileName = image.getName();
+        for (GalleryImage image : images) {
+            String fileName = image.getFileName();
             String imageUrl = "/assets/photos/" + section + "/" + year + "/" + fileName;
             String caption = resolveCaption(captions, fileName);
             String uploader = resolveUploader(captions, fileName);
@@ -683,7 +928,7 @@ public class OurStorySiteApplication {
             builder.append("</a>");
             builder.append("<div class=\"gallery-copy\">");
             builder.append("<h3>Uploaded by ").append(escapeHtml(uploader)).append("</h3>");
-            builder.append("<p class=\"caption-text\">").append(caption.isEmpty() ? "Add a caption for this image in captions.properties." : escapeHtml(caption)).append("</p>");
+            builder.append("<p class=\"caption-text\">").append(caption.isEmpty() ? "Add a caption while uploading this memory." : escapeHtml(caption)).append("</p>");
             builder.append("</div>");
             builder.append("</article>");
             markup.add(builder.toString());
@@ -745,9 +990,9 @@ public class OurStorySiteApplication {
         List<String> years = listYearFolders(section);
         for (String year : years) {
             Map<String, String> captions = loadCaptions(section, year);
-            List<File> images = listImages(section, year);
-            for (File image : images) {
-                String fileName = image.getName();
+            List<GalleryImage> images = listImages(section, year);
+            for (GalleryImage image : images) {
+                String fileName = image.getFileName();
                 String caption = resolveCaption(captions, fileName);
                 String uploader = resolveUploader(captions, fileName);
                 items.add(new FeedItem(
@@ -759,7 +1004,7 @@ public class OurStorySiteApplication {
                         "/" + section + "/" + year,
                         caption,
                         uploader,
-                        image.lastModified()
+                        image.getLastModified()
                 ));
             }
         }
@@ -767,30 +1012,10 @@ public class OurStorySiteApplication {
 
     private static Map<String, String> loadCaptions(String section, String year) {
         Map<String, String> captions = new HashMap<String, String>();
-        File captionFile = photosYearPath(section, year).resolve("captions.properties").toFile();
-        if (!captionFile.exists()) {
-            return captions;
+        Properties properties = readCaptionProperties(section, year);
+        for (String key : properties.stringPropertyNames()) {
+            captions.put(key, properties.getProperty(key));
         }
-
-        InputStream inputStream = null;
-        try {
-            inputStream = Files.newInputStream(captionFile.toPath());
-            Properties properties = new Properties();
-            properties.load(inputStream);
-            for (String key : properties.stringPropertyNames()) {
-                captions.put(key, properties.getProperty(key));
-            }
-        } catch (IOException ignored) {
-            return captions;
-        } finally {
-            if (inputStream != null) {
-                try {
-                    inputStream.close();
-                } catch (IOException ignored) {
-                }
-            }
-        }
-
         return captions;
     }
 
@@ -826,40 +1051,93 @@ public class OurStorySiteApplication {
     }
 
     private static List<String> listYearFolders(String section) {
-        File folder = photosSectionPath(section).toFile();
         List<String> years = new ArrayList<String>();
-        File[] files = folder.listFiles();
-        if (files == null) {
-            return years;
-        }
-
-        for (File file : files) {
-            if (file.isDirectory()) {
-                years.add(file.getName());
+        Set<String> uniqueYears = new LinkedHashSet<String>();
+        if (isFirebaseStorageEnabled()) {
+            String prefix = "assets/photos/" + section + "/";
+            try {
+                Storage storage = firebaseStorage();
+                Page<Blob> objects = storage.list(firebaseStorageBucket(),
+                        Storage.BlobListOption.prefix(prefix),
+                        Storage.BlobListOption.currentDirectory());
+                for (Blob object : objects.iterateAll()) {
+                    String name = object.getName();
+                    if (name == null || !name.startsWith(prefix) || !name.endsWith("/")) {
+                        continue;
+                    }
+                    String remainder = name.substring(prefix.length(), name.length() - 1);
+                    if (!remainder.isEmpty() && remainder.indexOf('/') < 0) {
+                        uniqueYears.add(remainder);
+                    }
+                }
+            } catch (Exception exception) {
+                LOG.warning("Failed to list years from Firebase Storage for section " + section + ": " + exception.getMessage());
             }
         }
 
+        File folder = photosSectionPath(section).toFile();
+        File[] files = folder.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    uniqueYears.add(file.getName());
+                }
+            }
+        }
+
+        years.addAll(uniqueYears);
         Collections.sort(years, Collections.reverseOrder());
         return years;
     }
 
-    private static List<File> listImages(String section, String year) {
-        File folder = photosYearPath(section, year).toFile();
-        List<File> images = new ArrayList<File>();
-        File[] files = folder.listFiles();
-        if (files == null) {
-            return images;
-        }
-
-        for (File file : files) {
-            if (file.isFile() && isImageFile(file.getName())) {
-                images.add(file);
+    private static List<GalleryImage> listImages(String section, String year) {
+        Map<String, GalleryImage> uniqueImages = new LinkedHashMap<String, GalleryImage>();
+        if (isFirebaseStorageEnabled()) {
+            String prefix = "assets/photos/" + section + "/" + year + "/";
+            try {
+                Storage storage = firebaseStorage();
+                Page<Blob> objects = storage.list(firebaseStorageBucket(), Storage.BlobListOption.prefix(prefix));
+                for (Blob object : objects.iterateAll()) {
+                    String name = object.getName();
+                    if (name == null || name.endsWith("/")) {
+                        continue;
+                    }
+                    if (!name.startsWith(prefix)) {
+                        continue;
+                    }
+                    String fileName = name.substring(prefix.length());
+                    if (fileName.isEmpty() || fileName.indexOf('/') >= 0 || !isImageFile(fileName)) {
+                        continue;
+                    }
+                    long lastModified = object.getUpdateTime() == null
+                            ? System.currentTimeMillis()
+                            : object.getUpdateTime();
+                    uniqueImages.put(fileName.toLowerCase(), new GalleryImage(fileName, lastModified));
+                }
+            } catch (Exception exception) {
+                LOG.warning("Failed to list images from Firebase Storage for " + section + "/" + year + ": " + exception.getMessage());
             }
         }
 
-        Collections.sort(images, new Comparator<File>() {
-            public int compare(File left, File right) {
-                return left.getName().compareToIgnoreCase(right.getName());
+        File folder = photosYearPath(section, year).toFile();
+        File[] files = folder.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isFile() && isImageFile(file.getName())) {
+                    String key = file.getName().toLowerCase();
+                    GalleryImage existing = uniqueImages.get(key);
+                    if (existing == null || file.lastModified() > existing.getLastModified()) {
+                        uniqueImages.put(key, new GalleryImage(file.getName(), file.lastModified()));
+                    }
+                }
+            }
+        }
+
+        List<GalleryImage> images = new ArrayList<GalleryImage>(uniqueImages.values());
+
+        Collections.sort(images, new Comparator<GalleryImage>() {
+            public int compare(GalleryImage left, GalleryImage right) {
+                return left.getFileName().compareToIgnoreCase(right.getFileName());
             }
         });
 
@@ -911,43 +1189,14 @@ public class OurStorySiteApplication {
     }
 
     private static void updateCaptionFile(String section, String year, String fileName, String caption, String uploader) throws IOException {
-        java.nio.file.Path captionPath = photosYearPath(section, year).resolve("captions.properties");
-        Properties properties = new Properties();
-        if (Files.exists(captionPath)) {
-            InputStream inputStream = null;
-            try {
-                inputStream = Files.newInputStream(captionPath);
-                properties.load(inputStream);
-            } finally {
-                if (inputStream != null) {
-                    inputStream.close();
-                }
-            }
-        }
-
+        Properties properties = readCaptionProperties(section, year);
         properties.setProperty(fileName, valueOrEmpty(caption));
         properties.setProperty(uploaderKey(fileName), valueOrEmpty(uploader));
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        properties.store(outputStream, "Gallery captions");
-        Files.write(captionPath, outputStream.toByteArray());
+        writeCaptionProperties(section, year, properties);
     }
 
     private static void removeCaptionEntry(String section, String year, String fileName) throws IOException {
-        java.nio.file.Path captionPath = photosYearPath(section, year).resolve("captions.properties");
-        if (!Files.exists(captionPath)) {
-            return;
-        }
-
-        Properties properties = new Properties();
-        InputStream inputStream = null;
-        try {
-            inputStream = Files.newInputStream(captionPath);
-            properties.load(inputStream);
-        } finally {
-            if (inputStream != null) {
-                inputStream.close();
-            }
-        }
+        Properties properties = readCaptionProperties(section, year);
 
         String matchedKey = null;
         for (String key : properties.stringPropertyNames()) {
@@ -960,9 +1209,7 @@ public class OurStorySiteApplication {
         if (matchedKey != null) {
             properties.remove(matchedKey);
             properties.remove(uploaderKey(matchedKey));
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            properties.store(outputStream, "Gallery captions");
-            Files.write(captionPath, outputStream.toByteArray());
+            writeCaptionProperties(section, year, properties);
         }
     }
 
@@ -994,6 +1241,110 @@ public class OurStorySiteApplication {
 
     private static java.nio.file.Path photosYearPath(String section, String year) {
         return photosSectionPath(section).resolve(year);
+    }
+
+    private static void uploadImageToFirebaseStorage(String section, String year, String fileName, byte[] data) {
+        String objectName = firebasePhotosObjectPath(section, year, fileName);
+        BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(firebaseStorageBucket(), objectName))
+                .setContentType(detectImageContentType(fileName))
+                .build();
+        firebaseStorage().create(blobInfo, data);
+    }
+
+    private static boolean deleteImageFromFirebaseStorage(String section, String year, String fileName) {
+        String objectName = firebasePhotosObjectPath(section, year, fileName);
+        return firebaseStorage().delete(BlobId.of(firebaseStorageBucket(), objectName));
+    }
+
+    private static byte[] readFirebaseAsset(String objectPath) throws IOException {
+        Blob blob = firebaseStorage().get(BlobId.of(firebaseStorageBucket(), objectPath));
+        if (blob == null || !blob.exists()) {
+            throw new IOException("Missing Firebase asset: /" + objectPath);
+        }
+        return blob.getContent();
+    }
+
+    private static Properties readCaptionProperties(String section, String year) {
+        Properties properties = new Properties();
+        String objectPath = firebaseCaptionObjectPath(section, year);
+
+        if (isFirebaseStorageEnabled()) {
+            try {
+                Blob blob = firebaseStorage().get(BlobId.of(firebaseStorageBucket(), objectPath));
+                if (blob == null || !blob.exists()) {
+                    return properties;
+                }
+                byte[] content = blob.getContent();
+                ByteArrayInputStream inputStream = new ByteArrayInputStream(content);
+                properties.load(inputStream);
+                return properties;
+            } catch (Exception exception) {
+                LOG.warning("Failed to read captions from Firebase Storage for " + section + "/" + year + ": " + exception.getMessage());
+                return properties;
+            }
+        }
+
+        java.nio.file.Path captionPath = photosYearPath(section, year).resolve("captions.properties");
+        if (!Files.exists(captionPath)) {
+            return properties;
+        }
+        InputStream inputStream = null;
+        try {
+            inputStream = Files.newInputStream(captionPath);
+            properties.load(inputStream);
+        } catch (IOException ignored) {
+            return properties;
+        } finally {
+            if (inputStream != null) {
+                try {
+                    inputStream.close();
+                } catch (IOException ignored) {
+                }
+            }
+        }
+        return properties;
+    }
+
+    private static void writeCaptionProperties(String section, String year, Properties properties) throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        properties.store(outputStream, "Gallery captions");
+        byte[] payload = outputStream.toByteArray();
+
+        if (isFirebaseStorageEnabled()) {
+            String objectPath = firebaseCaptionObjectPath(section, year);
+            BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(firebaseStorageBucket(), objectPath))
+                    .setContentType("text/plain; charset=UTF-8")
+                    .build();
+            firebaseStorage().create(blobInfo, payload);
+            return;
+        }
+
+        java.nio.file.Path captionPath = photosYearPath(section, year).resolve("captions.properties");
+        Files.write(captionPath, payload);
+    }
+
+    private static Storage firebaseStorage() {
+        return StorageClient.getInstance().bucket(firebaseStorageBucket()).getStorage();
+    }
+
+    private static String detectImageContentType(String fileName) {
+        String lower = fileName.toLowerCase();
+        if (lower.endsWith(".png")) {
+            return "image/png";
+        }
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+            return "image/jpeg";
+        }
+        if (lower.endsWith(".svg")) {
+            return "image/svg+xml";
+        }
+        if (lower.endsWith(".gif")) {
+            return "image/gif";
+        }
+        if (lower.endsWith(".webp")) {
+            return "image/webp";
+        }
+        return "application/octet-stream";
     }
 
     private static String formatDate(long value) {
@@ -1046,6 +1397,12 @@ public class OurStorySiteApplication {
         if (path.endsWith(".jpg") || path.endsWith(".jpeg")) {
             return "image/jpeg";
         }
+        if (path.endsWith(".gif")) {
+            return "image/gif";
+        }
+        if (path.endsWith(".webp")) {
+            return "image/webp";
+        }
         return "application/octet-stream";
     }
 
@@ -1075,7 +1432,21 @@ public class OurStorySiteApplication {
     }
 
     private static boolean isHemanth(String username) {
-        return username != null && username.equalsIgnoreCase("Hemanth");
+        if (username == null) {
+            return false;
+        }
+
+        String normalized = username.trim().toLowerCase();
+        String adminEmail = readEnv("OUR_STORY_ADMIN_EMAIL", "").trim().toLowerCase();
+        if (!adminEmail.isEmpty() && normalized.equals(adminEmail)) {
+            return true;
+        }
+        if (normalized.equals("hemanth")) {
+            return true;
+        }
+
+        int atIndex = normalized.indexOf('@');
+        return atIndex > 0 && normalized.substring(0, atIndex).equals("hemanth");
     }
 
     private static String escapeHtml(String input) {
@@ -1088,6 +1459,17 @@ public class OurStorySiteApplication {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;");
+    }
+
+    private static String escapeJs(String input) {
+        if (input == null) {
+            return "";
+        }
+        return input
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\r", "")
+                .replace("\n", "");
     }
 
     private static class MemoryCard {
@@ -1209,6 +1591,24 @@ public class OurStorySiteApplication {
 
         private String getDateLabel() {
             return formatDate(lastModified);
+        }
+    }
+
+    private static class GalleryImage {
+        private final String fileName;
+        private final long lastModified;
+
+        private GalleryImage(String fileName, long lastModified) {
+            this.fileName = fileName;
+            this.lastModified = lastModified;
+        }
+
+        private String getFileName() {
+            return fileName;
+        }
+
+        private long getLastModified() {
+            return lastModified;
         }
     }
 
